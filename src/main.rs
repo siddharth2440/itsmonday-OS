@@ -1,9 +1,9 @@
 #![no_std]
 #![no_main]
 
-static HELLO: &[u8] = b"                                  ItsMoNdAy OS                                                                                                                  ";
+pub mod vga_buffer;
 
-
+static HELLO: &[u8] = b"                                  It'sMoNdAy OS                                                                                                                  ";
 #[unsafe(no_mangle)]
 pub extern "C" fn _start() {
     let vga_buffer = 0xb8000 as *mut u8;
