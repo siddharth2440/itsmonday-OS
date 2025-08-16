@@ -18,7 +18,6 @@ pub enum Color {
     White = 15
 }
 
-
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy)]
 struct ColorCode(u8);
@@ -47,7 +46,7 @@ const BUFFER_WIDTH:usize = 80;
 
 #[allow(dead_code)]
 struct BUFFER {
-    chars: [ [ ScreenCharacter; BUFFER_WIDTH ]; BUFFER_HEIGHT ]
+    chars: [ [ volatile::Volatile<ScreenCharacter>; BUFFER_WIDTH ]; BUFFER_HEIGHT ]
 }
 
 
@@ -56,6 +55,14 @@ pub struct Writer {
     col_pos: usize,
     color_code: ColorCode,
     buffer: &'static mut BUFFER
+}
+
+use core::fmt;
+impl fmt::Write for Writer {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        self.write_string(s);
+        Ok(())
+    }
 }
 
 
@@ -73,9 +80,61 @@ impl Writer {
                 let col: usize = self.col_pos;
 
                 let _color_code = self.color_code;
-                self.buffer.chars[row][col] = ScreenCharacter { ascii_ch: byte, color_code: _color_code };
+                self.buffer.chars[row][col].write(ScreenCharacter { ascii_ch: byte, color_code: _color_code });
                 self.col_pos += 1;
             }
         }
     }
+
+    pub fn new_line(&mut self){
+        // TODO
+
+        for row in 0..BUFFER_HEIGHT {
+            for col in 0..BUFFER_WIDTH {
+                let ch = self.buffer.chars[row][col].read();
+                self.buffer.chars[row-1][col].write(ch);
+            }
+        }
+        self.clear_row(BUFFER_HEIGHT -1);
+        self.col_pos = 0;
+    }
+
+    pub fn clear_row( &mut self, row: usize ) {
+        let blank: ScreenCharacter = ScreenCharacter { ascii_ch: b' ', color_code: self.color_code };
+        for col  in 0..BUFFER_WIDTH {
+            self.buffer.chars[row][col].write(blank);
+        }
+    }
+
+    pub fn write_string(&mut self, s: &str) {
+        for byte in s.bytes() {
+            match byte {
+                // ascii byte or newline
+                0x20..=0x7e | b'\n' => {
+                    self.write_byte(byte)
+                },
+                _ => self.write_byte(0xfe),
+            }
+        }
+    }
+
+}
+
+// pub fn testing_writer() {
+//     let mut writer: Writer = Writer { 
+//         col_pos: 0, 
+//         color_code: ColorCode::new(Color::Green, Color::Black), 
+//         buffer: unsafe { &mut *( 0xb8000 as *mut BUFFER ) }
+//     };
+//     writer.write_byte(b'W');
+//     writer.write_string("elcome It'sMoNdAy!!");
+//     // write!( writer, "write line implementaion ok!").unwrap();
+// }
+
+lazy_static::lazy_static!{
+    pub static ref WRITER: Writer = Writer {
+                                        col_pos: 0,
+                                        color_code: ColorCode::new(Color::Yellow, Color::Black),
+                                        buffer: unsafe { &mut *(0xb8000 as *mut BUFFER) },
+                                    };
 }
