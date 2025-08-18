@@ -132,9 +132,27 @@ impl Writer {
 // }
 
 lazy_static::lazy_static!{
-    pub static ref WRITER: Writer = Writer {
+    pub static ref WRITER: spin::Mutex<Writer> = spin::Mutex::new(Writer {
                                         col_pos: 0,
-                                        color_code: ColorCode::new(Color::Yellow, Color::Black),
+                                        color_code: ColorCode::new(Color::Green, Color::Black),
                                         buffer: unsafe { &mut *(0xb8000 as *mut BUFFER) },
-                                    };
+                                    });
+}
+
+
+#[macro_export]
+macro_rules! println {
+    () => (print("\n"));
+    ($($arg:tt)*) => ($crate::print!("{}\n", format_args!($($arg)*)));
+}
+
+#[macro_export]
+macro_rules! print  {
+    ($($arg:tt)*) => ($crate::vga_buffer::_print(format_args!($($arg)*)));
+}
+
+#[doc(hidden)]
+pub fn _print(args: fmt::Arguments) {
+    use core::fmt::Write;
+    WRITER.lock().write_fmt(args).unwrap();
 }
