@@ -1,9 +1,8 @@
-// #![test(crate::test_runner)]
 #![no_std]
 #![no_main]
-// #![feature(custom_test_frameworks)]
-
-use core::fmt::Write;
+#![feature(custom_test_frameworks)]
+#![test(crate::test_runner)]
+#![reexport_test_harness_main = "test_main"]
 
 pub mod vga_buffer;
 
@@ -22,6 +21,9 @@ pub extern "C" fn _start() {
     // write!(vga_buffer::WRITER.lock(), ", some numbers: {} {}", 42, 1.337).unwrap();
     println!("Hello It'sMoNdAy. How's your day going??");
 
+    #[cfg(test)]
+    test_main();
+
     loop {}
 }
 
@@ -37,6 +39,31 @@ pub fn test_runner( tests: &[&dyn Fn()]) {
     println!("Running {} tests", tests.len());
 
     for _test in tests {
-        _test();
+        _test(); 
+    }
+
+    exit_qemu(QemuExitCode::Success);
+}
+
+#[test_case]
+fn trivial_assertion() {
+    println!(" our very first case ");
+    assert_eq!(1,1);
+    println!("test passed")
+}
+
+
+// QemuExit Code 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum QemuExitCode {
+    Success = 0x10,
+    Failed = 0x11
+}
+
+pub fn exit_qemu( exit_code: QemuExitCode ) {
+    use x86_64::instructions::port::Port;
+    unsafe {
+        let mut port = Port::new(0xf4);
+        port.write(exit_code as u32);
     }
 }

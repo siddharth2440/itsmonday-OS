@@ -1,4 +1,5 @@
 #[repr(u8)]
+#[derive(Debug,Clone, Copy, PartialEq, Eq)]
 pub enum Color {
     Black = 0,
     Blue = 1,
@@ -18,8 +19,9 @@ pub enum Color {
     White = 15
 }
 
-#[allow(dead_code)]
-#[derive(Debug, Clone, Copy)]
+// #[allow(dead_code)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(transparent)]
 struct ColorCode(u8);
 
 // 1 byte ColorCode (0-7)
@@ -31,8 +33,9 @@ impl ColorCode {
 }
 
 // 16 byte ----  0-7(character) 7-15(colors ie., foreground, background, blink )
-#[derive(Debug, Clone, Copy)]
-#[allow(dead_code)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(C)]
+// #[allow(dead_code)]
 struct ScreenCharacter{
     ascii_ch: u8,
     color_code: ColorCode
@@ -44,9 +47,11 @@ const BUFFER_HEIGHT:usize = 25;
 #[allow(dead_code)]
 const BUFFER_WIDTH:usize = 80;
 
-#[allow(dead_code)]
+
+// #[allow(dead_code)]
+#[repr(transparent)]
 struct BUFFER {
-    chars: [ [ volatile::Volatile<ScreenCharacter>; BUFFER_WIDTH ]; BUFFER_HEIGHT ]
+    chars: [[ volatile::Volatile<ScreenCharacter>; BUFFER_WIDTH ]; BUFFER_HEIGHT ]
 }
 
 
@@ -56,15 +61,6 @@ pub struct Writer {
     color_code: ColorCode,
     buffer: &'static mut BUFFER
 }
-
-use core::fmt;
-impl fmt::Write for Writer {
-    fn write_str(&mut self, s: &str) -> fmt::Result {
-        self.write_string(s);
-        Ok(())
-    }
-}
-
 
 
 impl Writer {
@@ -120,6 +116,14 @@ impl Writer {
 
 }
 
+use core::fmt;
+impl fmt::Write for Writer {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        self.write_string(s);
+        Ok(())
+    }
+}
+
 // pub fn testing_writer() {
 //     let mut writer: Writer = Writer { 
 //         col_pos: 0, 
@@ -139,17 +143,18 @@ lazy_static::lazy_static!{
                                     });
 }
 
-
-#[macro_export]
-macro_rules! println {
-    () => (print("\n"));
-    ($($arg:tt)*) => ($crate::print!("{}\n", format_args!($($arg)*)));
-}
-
 #[macro_export]
 macro_rules! print  {
     ($($arg:tt)*) => ($crate::vga_buffer::_print(format_args!($($arg)*)));
 }
+
+
+#[macro_export]
+macro_rules! println {
+    () => ($crate::print!("\n"));
+    ($($arg:tt)*) => ($crate::print!("{}\n", format_args!($($arg)*)));
+}
+
 
 #[doc(hidden)]
 pub fn _print(args: fmt::Arguments) {
