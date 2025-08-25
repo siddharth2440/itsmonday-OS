@@ -5,7 +5,7 @@
 #![reexport_test_harness_main = "test_main"]
 
 pub mod vga_buffer;
-// pub mod serial;
+pub mod serial;
 
 static HELLO: &[u8] = b"                                  It'sMoNdAy OS                                                                                                                  ";
 #[unsafe(no_mangle)]
@@ -37,48 +37,50 @@ fn panic( _info: &core::panic::PanicInfo ) -> ! {
 
 #[cfg(test)]
 pub fn test_runner( tests: &[&dyn Fn()]) {
-    println!("Running {} tests", tests.len());
+    serial_println!("Running {} tests", tests.len());
 
     for _test in tests {
         _test(); 
     }
 
-    // exit_qemu(QemuExitCode::Success);
+    // Qemu Exit
+    exit_qemu(QemuExitCode::Success);
 }
 
 #[test_case]
 fn trivial_assertion() {
     print!("running test");
-    assert_eq!(1,1);
-    println!("test passed:  [ok]")
+    assert_eq!(0,1);
+    println!("[ok]");
 }
 
 #[test_case]
 fn trivial_assertion1() {
-    print!("running test");
+    serial_print!("running test");
     assert_eq!(1,1);
-    println!("test passed:  [ok]")
+    serial_println!("test passed:  [ok]");
 }
 
 #[test_case]
 fn trivial_assertion2() {
-    print!("running test");
+    serial_print!("running test");
     assert_eq!(1,1);
-    println!("test passed:  [ok]")
+    serial_println!("test passed:  [ok]");
 }
 
 
-// QemuExit Code 
-// #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-// pub enum QemuExitCode {
-//     Success = 0x10,
-//     Failed = 0x11
-// }
+// Qemu Exit Section 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u32)]
+pub enum QemuExitCode {
+    Success = 0x10,
+    Failed = 0x11
+}
 
-// pub fn exit_qemu( exit_code: QemuExitCode ) {
-//     use x86_64::instructions::port::Port;
-//     unsafe {
-//         let mut port = Port::new(0xf4);
-//         port.write(exit_code as u32);
-//     }
-// }
+pub fn exit_qemu( exit_code: QemuExitCode ) {
+    use x86_64::instructions::port::Port;
+    unsafe {
+        let mut port = Port::new(0xf4);
+        port.write(exit_code as u32);
+    }
+}

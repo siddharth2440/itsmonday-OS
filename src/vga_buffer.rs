@@ -66,10 +66,10 @@ pub struct Writer {
 impl Writer {
     pub fn write_byte( &mut self, byte: u8 ) {
         match byte {
-            b'\n' => unimplemented!(),
+            b'\n' => self.new_line(),
             byte => {
                 if self.col_pos >= BUFFER_WIDTH {
-                    unimplemented!();
+                    self.new_line();
                 }
 
                 let row: usize = BUFFER_HEIGHT - 1;
