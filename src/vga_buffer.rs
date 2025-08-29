@@ -25,7 +25,7 @@ pub enum Color {
 struct ColorCode(u8);
 
 // 1 byte ColorCode (0-7)
-#[allow(dead_code)]
+// #[allow(dead_code)]
 impl ColorCode {
     fn new( f_ground: Color, b_ground: Color ) -> Self {
         return Self( ((b_ground as u8) << 4) | ( f_ground as u8 ) );
@@ -41,10 +41,10 @@ struct ScreenCharacter{
     color_code: ColorCode
 }
 
-#[allow(dead_code)]
+// #[allow(dead_code)]
 const BUFFER_HEIGHT:usize = 25;
 
-#[allow(dead_code)]
+// #[allow(dead_code)]
 const BUFFER_WIDTH:usize = 80;
 
 
@@ -164,6 +164,18 @@ pub fn _print(args: fmt::Arguments) {
 
 
 // Tests 
+#[test_case]
+fn test_println_simple() {
+    println!("test println simple output");
+}
+
+#[test_case]
+fn test_print_many() {
+    for _ in 1..=200 {
+        println!("test println many output");
+    }
+}
+
 #[test_case]
 fn test_println_output() {
     let s = "this is how legends are made";

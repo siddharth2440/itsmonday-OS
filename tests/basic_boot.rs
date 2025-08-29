@@ -6,16 +6,26 @@
 
 use core::panic::PanicInfo;
 
+use rustyos::println;
+
 #[unsafe(no_mangle)]
 pub extern "C" fn _start() -> ! {
     test_main();
+    
     loop {}
 }
 
-fn test_runner( _tests: &[&dyn Fn()]) {
-    unimplemented!();
+// fn test_runner( _tests: &[&dyn Fn()]) {
+//     unimplemented!();
+// }
+
+#[panic_handler]
+fn panic( _info: &PanicInfo) -> ! {
+    rustyos::test_panic_handler(_info);
 }
 
-fn panic( _info: &PanicInfo) -> ! {
-    loop{}
+#[test_case]
+fn test_println() {
+    println!("test pass: [ok]");
+    assert_eq!(1, 0);
 }
