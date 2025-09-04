@@ -3,12 +3,18 @@
 #![feature(custom_test_frameworks)]
 #![test_runner(crate::test_runner)]
 #![reexport_test_harness_main = "test_main"]
+#![feature(abi_x86_interrupt)]
 
 use core::panic::PanicInfo;
 
 pub mod serial;
 pub mod vga_buffer;
+pub mod idt;
+pub mod interrupts;
+pub mod gdt;
 
+
+// ---------------------------------- Qemu ---------------------------------- 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u32)]
 pub enum QemuExitCode {
@@ -23,6 +29,8 @@ pub fn exit_qemu( exit_code: QemuExitCode ) {
         port.write(exit_code as u32);
     }
 }
+// ----------------------------------- Qemu --------------------------------------
+
 
 pub trait Testable {
     fn run(&self) -> ();
@@ -55,7 +63,7 @@ pub fn test_runner( tests: &[&dyn Testable]) {
 pub fn  test_panic_handler(info: &PanicInfo) -> ! {
     serial_println!("[failed]\n");
     serial_println!("Error: {}\n", info);
-    exit_qemu(QemuExitCode::Success);
+    exit_qemu(QemuExitCode::Failed);
     loop {}
 }
 
@@ -80,6 +88,7 @@ pub fn  test_panic_handler(info: &PanicInfo) -> ! {
 #[cfg(test)]
 #[unsafe(no_mangle)]
 pub extern "C" fn _start() -> ! {
+    init();
     test_main();
     loop {}
 }
@@ -89,3 +98,12 @@ pub extern "C" fn _start() -> ! {
 fn panic(info: &PanicInfo) -> ! {
     test_panic_handler(info)
 }
+
+// IDT 
+pub fn init() {
+    interrupts::init_idt();
+}
+
+
+
+// TSS
