@@ -41,11 +41,11 @@ pub extern "C" fn _start() {
 
 
     // for stack overflow
-    fn stack_overflow() {
-        stack_overflow();
-    }
+    // fn stack_overflow() {
+    //     stack_overflow();
+    // }
 
-    stack_overflow();
+    // stack_overflow();
 
     // vga_buffer::WRITER.lock().write_str("Hello again").unwrap();
     // write!(vga_buffer::WRITER.lock(), ", some numbers: {} {}", 42, 1.337).unwrap();

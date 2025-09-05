@@ -7,6 +7,8 @@
 
 use core::panic::PanicInfo;
 
+use x86_64::VirtAddr;
+
 pub mod serial;
 pub mod vga_buffer;
 pub mod idt;
@@ -106,4 +108,11 @@ pub fn init() {
 
 
 
-// TSS
+// Descriptor Table pointer
+
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct DescriptorTablePointer {
+    pub limit: u16,
+    pub base: VirtAddr
+}
