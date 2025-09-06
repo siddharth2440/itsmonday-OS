@@ -3,7 +3,7 @@
 #![feature(custom_test_frameworks)]
 #![test_runner(crate::test_runner)]
 #![reexport_test_harness_main = "test_main"]
-#![feature(abi_x86_interrupt)]
+// #![feature(abi_x86_interrupt)]
 
 use core::panic::PanicInfo;
 
@@ -14,6 +14,7 @@ pub mod vga_buffer;
 pub mod idt;
 pub mod interrupts;
 pub mod gdt;
+pub mod segmentation;
 
 
 // ---------------------------------- Qemu ---------------------------------- 

@@ -13,6 +13,7 @@ pub mod serial;
 pub mod idt;
 pub mod interrupts;
 pub mod ist;
+pub mod segmentation;
 
 static HELLO: &[u8] = b"                                  It'sMoNdAy OS                                                                                                                  ";
 

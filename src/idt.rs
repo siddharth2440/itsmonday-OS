@@ -1,7 +1,8 @@
 // Interrupt Descriptor Table
-use x86_64::{instructions::tables::lidt, structures::idt::{Entry, HandlerFuncWithErrCode, InterruptStackFrame, PageFaultHandlerFunc}, VirtAddr};
 
-use crate::DescriptorTablePointer;
+use core::marker::PhantomData;
+
+use crate::{segmentation::SegmentSelector, DescriptorTablePointer};
 
 #[repr(C)]
 pub struct InterruptDescriptorTable {
@@ -34,9 +35,6 @@ pub struct InterruptDescriptorTable {
     reserved_3:                         Entry<HandlerFuncWithErrCode>,
     interrupts:                         [Entry<HandlerFunc>; 256 - 32]
 }
-
-
-type HandlerFunc = extern "x86-interrupt" fn(_: InterruptStackFrame);
 
 impl InterruptDescriptorTable {
 
@@ -99,3 +97,116 @@ impl InterruptDescriptorTable {
         }
 
 }
+
+
+// HandlerFunc
+
+#[cfg(all(
+    any(target_arch="x86", target_arch="x86_64", feature = "abi_x86_interrupt"),
+    feature = "abi_x86_interrupt"
+))]
+pub type HandlerFunc = extern "x86-interrupt" fn(InterruptStackFrame);
+
+#[cfg(not(all(
+    any(target_arch="x86", target_arch="x86_64"),
+    feature = "abi_x86_interrupt"
+)))]
+#[derive(Debug, Copy, Clone)]
+pub struct HandlerFunc(());
+
+
+
+// HandleFuncWithErrorCode
+#[cfg(all(
+    any(target_arch="x86", target_arch="x86_64"),
+    feature = "abi_x86_interrupt"
+))]
+pub type HandlerFuncWithErrCode = extern "x86-interrupt" fn(InterruptStackFrame, error_code: u64);
+
+#[cfg(not(all(
+    any(target_arch="x86", target_arch="x86_64"),
+    feature = "abi_x86_interrupt"
+)))]
+#[derive(Debug, Clone, Copy)]
+pub struct HandlerFuncWithErrCode(());
+
+
+// Page fault handler function
+#[cfg(all(
+    any(target_arch="x86", target_arch="x86_64"),
+    feature = "abi_x86_interrupt"
+))]
+pub type PageFaultHandlerFunc = extern "abi_x86_interrupt" fn(InterruptStackFrame, error_code: PageFaultErrorCode);
+
+#[cfg(not(all(
+    any(target_abi="x86", target_abi="x86_64"),
+    feature = "abi_x86_interrupt"
+)))]
+#[derive(Debug, Clone, Copy)]
+pub struct PageFaultHandlerFunc(());
+
+
+
+// Diverging function handler
+#[cfg(all(
+    any(target_arch="x86", target_arch="x86_64"),
+    feature = "abi_x86_interrupt"
+))]
+pub type DivergingHandlerFunc = extern "x86-interrupt" fn(InterruptStackFrame) -> !;
+
+
+#[cfg(not(all(
+    any( target_arch="x86", target_arch="x86_64"),
+    feature = "abi_x86_interrupt"
+)))]
+#[derive(Debug, Clone, Copy)]
+pub struct DivergingHandlerFunc(());
+
+
+// Diverging Handler function for ErrorCode
+#[cfg(all(
+    any(target_arch = "x86", target_arch = "x86_64"),
+    feature = "abi_x86_interrupt"
+))]
+pub type DivergingHandlerFuncWithErrCode = extern "x86_64" fn(InterruptStackFrame, error_code: u64) -> !;
+
+#[cfg(not(all(
+    any(target_arch = "x86", target_arch = "x86_64"),
+    feature = "abi_x86_interrupt"
+)))]
+#[derive(Debug, Clone, Copy)]
+pub struct DivergingHandlerFuncWithErrCode(());
+
+
+// Entry point
+pub type GeneralHandlerFunc = fn(InterruptStackFrame, index: u8, error_code: Option<u64>);
+
+
+impl<T> GeneralHandlerFunc<T> {
+    pub const fn missing() -> Self {
+        Entry {
+            pointer_low: 0,
+            pointer_middle: 0,
+            pointer_high: 0,
+            options: EntryOptions::minimal(),
+            reserved: 0,
+            phantom: PhantomData
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct EntryOptions{
+    cs: SegmentSelector,
+    bits: u16
+}
+
+impl EntryOptions {
+    const fn minimal() -> Self {
+        EntryOptions { 
+            cs: SegmentSelector(0), 
+            bits: 0b1110_0000_0000
+        }
+    }
+}
+
