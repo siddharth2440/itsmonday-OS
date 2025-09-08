@@ -14,6 +14,7 @@ pub mod idt;
 pub mod interrupts;
 pub mod ist;
 pub mod segmentation;
+pub mod model_specific;
 
 static HELLO: &[u8] = b"                                  It'sMoNdAy OS                                                                                                                  ";
 
