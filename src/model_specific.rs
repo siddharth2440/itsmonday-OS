@@ -194,3 +194,145 @@ bitflags! {
         const LAPIC_ENABLE = 1 << 11; 
     }
 }
+
+mod x86_64 {
+    use crate::{addr::VirtualAddr, model_specific::{Efer, EferFlags, FsBase, GsBase, KernelGsBase, Msr}};
+
+    impl Msr {
+        // reads 64 bits msr register
+        #[inline]
+        pub unsafe fn read(&self) -> u64 {
+            let ( high, low ): (u32, u32);
+            unsafe {
+                asm!(
+                    "rdmsr" // read MSR(model specific register)
+                    in("ecx") self.0
+                    out("eax") low, out("edx") high,
+                    options(nomem, nostack, preserves_flags),
+                )
+            }
+            ((high as u64) << 32 ) | ((low as u64))
+        }
+
+        // write 64 bits to msr registers
+        #[inline]
+        pub unsafe fn write(&mut self, value: u64) {
+            let low = value as u32;
+            let high = (value >> 32) as u32;
+
+            unsafe {
+                asm!(
+                    "wrmsr",
+                    in("ecx") self.0,
+                    out("eax") low, in("edx") high,
+                    options(nostack, preserves_flags),
+                )
+            }
+        }
+    }
+
+    impl Efer {
+        #[inline]
+        pub fn read() -> EferFlags {
+            EferFlags::from_bits_truncate(Self::read_raw())
+        }
+
+
+        // Reads the current Efer flags
+        #[inline]
+        pub fn read_raw() {
+            unsafe {
+                Self::MSR.read()
+            }
+        }
+
+
+        #[inline]
+        pub unsafe fn write(flags: EferFlags){
+            let old_value = Self::read_raw();
+            let reserved = old_value & !(EferFlags::all().bits());
+            let new_value = reserved | flags.bits();
+
+            unsafe {
+                Self::write_raw(new_value)
+            }
+        }
+
+        #[inline]
+        pub unsafe fn write_raw(flags: u64) {
+            let mut msr = Self::MSR;
+            unsafe {
+                msr.write(flags);
+            }
+        }
+
+        #[inline]
+        pub unsafe fn update<F>(f: F) where
+        F: FnOnce(&mut EferFlags) {
+            let mut flags = Self::read();
+            f(&mut flags);
+            unsafe {
+                Self::write(flags);
+            }
+        }
+    }
+
+
+    impl FsBase {
+
+        // read
+        #[inline]
+        pub fn read() -> VirtAddress {
+            VirtAddress::new( unsafe {
+                Self::MSR.read()
+            })
+        }
+        
+        // write
+        #[inline]
+        pub fn write(address: VirtualAddr) {
+            let mut msr = Self::MSR;
+            unsafe {
+                msr.write(address.as_u64());
+            }
+        }
+    }
+
+
+    impl GsBase {
+
+        #[inline]
+        pub fn read() -> VirtualAddr {
+            VirtualAddr::new(unsafe{
+                Self::MSR.read()
+            })
+        }
+
+        #[inline]
+        pub unsafe fn write(address: VirtualAddr) {
+            let mut msr = Self::MSR;
+            unsafe {
+                msr.write(address.as_u64());
+            }
+        }
+    }
+
+
+    impl KernelGsBase {
+
+        #[inline]
+        pub fn read() -> VirtualAddr {
+            VirtualAddr::new(unsafe{
+                Self::MSR.read()
+            })
+        }
+
+        #[inline]
+        pub unsafe fn write(address: VirtualAddr) {
+            let mut msr = Self::MSR;
+            unsafe {
+                msr.write(address.as_u64());
+            }
+        }
+    }
+}
