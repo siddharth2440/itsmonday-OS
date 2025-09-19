@@ -196,7 +196,9 @@ bitflags! {
 }
 
 mod x86_64 {
-    use crate::{addr::VirtualAddr, model_specific::{Efer, EferFlags, FsBase, GsBase, KernelGsBase, Msr}};
+    use core::fmt;
+
+    use crate::{addr::VirtualAddr, model_specific::{Efer, EferFlags, FsBase, GsBase, KernelGsBase, LStar, Msr, Star}, segmentation::SegmentSelector};
 
     impl Msr {
         // reads 64 bits msr register
@@ -335,4 +337,111 @@ mod x86_64 {
             }
         }
     }
+
+    impl Star {
+        #[inline]
+        pub fn read_raw() -> (u16, u16) {
+            let msr_value = unsafe {
+                Self::MSR.read()
+            };
+            let sysret = msr_value.get_bits(48..64);
+            let syscall = msr_value.get_bits(32..48);
+            ( sysret.try_into().unwrap(), syscall.try_into().unwrap() )
+        }
+
+        #[inline]
+        pub fn read() -> 
+        (   SegmentSelector,  // CS Selector
+            SegmentSelector,  // SS Selector
+            SegmentSelector,  // CS Selector
+            SegmentSelector   // SS Selector
+        ) {
+            let raw = Self::read_raw();
+            (
+                SegmentSelector(raw.0 + 16),
+                SegmentSelector(raw.0 + 8),
+                SegmentSelector(raw.1),
+                SegmentSelector(raw.1 + 8)
+            )
+        }
+
+        #[inline]
+        pub fn write_raw(sysret: u16, syscall: u16) {
+            let mut msr_value = 0u64;
+            msr_value.set_bits(48..64, sysret.into());
+            msr_value.set_bits(32..48, syscall.into());
+            let mut msr = Self::MSR;
+            unsafe {
+                msr.write(msr_value);
+            }
+        }
+
+        #[inline]
+        pub fn write(
+            cs_sysret: SegmentSelector,
+            ss_sysret: SegmentSelector,
+            cs_syscall: SegmentSelector,
+            ss_syscall: SegmentSelector
+        ) -> Result<(), InvalidStarSegmentSelectors> {
+            let cs_sysret_cmp = i32::from(cs_sysret.0) - 16;
+            let ss_sysret_cmp = i32::from(ss_sysret.0) - 8;
+            let cs_syscall_cmp = i32::from(cs_syscall.0);
+            let ss_syscall_cmp = i32::from(ss_syscall.0) - 8;
+
+            if cs_sysret_cmp != ss_sysret_cmp {
+                return Err(InvalidStarSegmentSelectors::SysretOffset);
+            }
+
+            if cs_syscall_cmp != ss_syscall_cmp {
+                return Err(InvalidStarSegmentSelectors::SyscallOffset);
+            }
+
+            if ss_sysret.rpl() != PrivilegeLevel::Ring3 {
+                return Err(InvalidStarSegmentSelectors::SyscallPrivilegeLevel);
+            }
+
+            if ss_syscall.rpl() != PrivilegeLevel::Ring0 {
+                return Err(InvalidStarSegmentSelectors::SyscallPrivilegeLevel);
+            }
+
+            unsafe {
+                Self::write_raw(ss_sysret.0 - 8, cs_syscall.0);
+            }
+
+        }
+
+    }
+
+
+    #[derive(Debug)]
+    pub enum InvalidStarSegmentSelectors{
+        SysretOffset,
+        SyscallOffset,
+        SysretPrivilegeLevel,
+        SyscallPrivilegeLevel
+    }
+
+    impl fmt::Display for InvalidStarSegmentSelectors {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            match self {
+                Self::SysretOffset => write!(f, "Sysret CS and SS are not offset by 8."),
+                Self::SyscallOffset => write!(f, "Syscall CS and SS are not offset by 8."),
+                Self::SysretPrivilegeLevel => write!(f, "Sysret segment must be a Ring3 segment."),
+                Self::SyscallPrivilegeLevel => write!(f, "Syscall's segment must be Ring0 segment."),
+            }
+        }
+    }
+
+    impl LStar {
+        #[inline]
+        pub fn read() -> VirtualAddr {
+            VirtualAddr::new(unsafe{Self::MSR.read()})
+        }
+
+        pub fn write(address: VirtualAddr) {
+            let mut msr = Self::MSR;
+            unsafe { msr.write(address.as_u64()); }
+        }
+    }
+
 }
