@@ -17,6 +17,7 @@ pub mod segmentation;
 pub mod model_specific;
 pub mod addr;
 pub mod gdt;
+pub mod rflags;
 
 static HELLO: &[u8] = b"                                  It'sMoNdAy OS                                                                                                                  ";
 

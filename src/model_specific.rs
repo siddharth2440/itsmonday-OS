@@ -198,7 +198,7 @@ bitflags! {
 mod x86_64 {
     use core::fmt;
 
-    use crate::{addr::VirtualAddr, model_specific::{Efer, EferFlags, FsBase, GsBase, KernelGsBase, LStar, Msr, Star}, segmentation::SegmentSelector};
+    use crate::{addr::VirtualAddr, model_specific::{Efer, EferFlags, FsBase, GsBase, KernelGsBase, LStar, Msr, SFMask, Star}, segmentation::SegmentSelector};
 
     impl Msr {
         // reads 64 bits msr register
@@ -443,5 +443,9 @@ mod x86_64 {
             unsafe { msr.write(address.as_u64()); }
         }
     }
+
+    // impl SFMask {
+    //     pub fn read() -> RF
+    // }
 
 }
