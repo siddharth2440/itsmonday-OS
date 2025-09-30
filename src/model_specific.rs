@@ -198,7 +198,7 @@ bitflags! {
 mod x86_64 {
     use core::fmt;
 
-    use crate::{addr::VirtualAddr, model_specific::{Efer, EferFlags, FsBase, GsBase, KernelGsBase, LStar, Msr, SFMask, Star}, segmentation::SegmentSelector};
+    use crate::{addr::VirtualAddr, model_specific::{Efer, EferFlags, FsBase, GsBase, KernelGsBase, LStar, Msr, SFMask, Star, Ucet}, segmentation::SegmentSelector};
 
     impl Msr {
         // reads 64 bits msr register
@@ -444,8 +444,69 @@ mod x86_64 {
         }
     }
 
-    // impl SFMask {
-    //     pub fn read() -> RF
-    // }
+    impl SFMask {
+        #[inline]
+        pub fn read() -> RFlags {
+            RFlags::from_bits(unsafe {
+                Self::MSR.read()
+            }).unwrap()
+        }
+
+        #[inline]
+        pub fn write(value: RFlags) {
+            let mut msr = Self::MSR;
+            unsafe { msr.write(value.bits()) };
+        }
+
+        #[inline]
+        pub fn update<F>(f: F)
+        where
+            F: FnOnce(&mut RFlags)
+        {
+            let mut flags = Self::read();
+            f(&mut flags);
+            Self::write(flags);
+        }
+    }
+
+    impl Ucet {
+
+        #[inline]
+        pub fn read_raw() -> u64 {
+            unsafe { Self::MSR.read() }
+        }
+
+        #[inline]
+        pub fn write_raw(value: u64) {
+            let mut msr = Self::MSR;
+            unsafe {
+                msr.write(value);
+            }
+        }
+
+        #[inline]
+        pub fn read() -> (CetFlags, Page) {
+            let value = Self::read_raw();
+            let cet_flags = CetFlags::from_bits_truncate(value);
+            let legacy_bitmap = Page::from_start_address(VirtualAddr::new( value & !(Page::<Sinze4KiB>SIZE -1) )).unwrap();
+
+            (cet_flags, legacy_bitmap)
+        }
+
+        #[inline]
+        pub fn write(flas: CetFlags, legacy_bitmap: Page) {
+            Self::write_raw(flas.bits() | legacy_bitmap.start_address().as_64());
+        }
+
+        #[inline]
+        pub fn update<F>(f: F)
+        where
+            F: FnOnce(&mut CetFlags, &mut Page)
+        {
+            let (mut flags, mut legacy_bitmap) = Self::read();
+            f(&mut flags, &mut legacy_bitmap);
+            Self::write(flags, legacy_bitmap);
+        }
+    }
 
 }

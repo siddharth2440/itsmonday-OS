@@ -83,4 +83,46 @@ mod x86_64{
         }
         r
     }
+
+    #[inline]
+    pub unsafe fn write(flags: RFlags) {
+        let old_value = read_raw();
+        let reserved_value = old_value & !(RFlags::all().bits());
+        let new_value = reserved | flags.bits();
+
+        unsafe {
+            self::write_raw(new_value);
+        }
+    }
+
+    #[inline]
+    pub unsafe fn write_raw(val: u64) {
+        unsafe{
+            asm!("push {}; popfq", in(reg) val, options(nomem, preserves_flags));
+        }
+    }
+
+    pub unsafe fn update<F>(f: F)
+    where
+    F: FnOnce(&mut flags),
+    {
+        let mut flags = self::read();
+        f(&mut  flags);
+        unsafe {
+            self::write(flags);
+        }
+    }
+
+    #[cfg(test)]
+    mod test {
+        use rustyos::println;
+
+        use crate::rflags::x86_64::read;
+
+        #[test]
+        fn rflags_read(){
+            let rflags = read();
+            println!("{:#?}", rflags);
+        }
+    }
 }
