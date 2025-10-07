@@ -1,8 +1,8 @@
 // Interrupt Descriptor Table
 
-use core::{marker::PhantomData, ops::{Bound, IndexMut, Range, RangeBounds, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive}};
+use core::{fmt, marker::PhantomData, ops::{Bound, IndexMut, Range, RangeBounds, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive}};
 
-use crate::{segmentation::SegmentSelector, DescriptorTablePointer};
+use crate::{segmentation::{SegmentSelector, CS}, DescriptorTablePointer};
 
 #[repr(C)]
 pub struct InterruptDescriptorTable {
@@ -247,7 +247,25 @@ pub struct Entry<F> {
     phantom: PhantomData<F>
 }
 
-// todo!!!
+
+impl<T> fmt::Debug for Entry<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Entry")
+        .field("handler_addr", &format_args!("{:x}", self.handler_addr()))
+        .field("options", &self.options)
+        .finish()
+    }
+}
+
+
+impl<T> PartialEq for Entry<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.pointer_low == other.pointer_low
+        && self.options == other.options
+        && self.pointer_high == other.pointer_high
+        && self.reserved == other.reserved
+    }
+}
 
 // HandlerFunc
 
@@ -340,12 +358,103 @@ impl<T> GeneralHandlerFunc<T> {
             phantom: PhantomData
         }
     }
+
+    // Sets the handle funtiofor each idt entry and sets the following default
+    // 1. The code selector is the code segment currently active in the CPU 
+    // 2. Present bit set
+    // 3. Interrupts are disables on handler invocation 
+    // 4. Pivilege level Ring0 
+    // 4. No IST is configured (existing stack will be used).. 
+
+    #[cfg(all(feature = "instructions", target_arch = "x86_64"))]
+    #[inline]
+    pub unsafe fn set_handler_func(&mut self, addr: VirtAddr) -> &mut EntryOptions {
+        let addr = addr.as_u64();
+
+        self.pointer_low = addr as u16;
+        self.pointer_high = ( addr >> 32 ) as u32;
+        self.pointer_middle = ( addr >> 16 ) as u16;
+
+        self.options = EntryOptions::minimal();
+
+        unsafe {
+            self.options.set_code_selector(CS::get_reg())
+        }
+        self.options.set_present(true);
+        &mut self.options
+    }
+
+    #[inline]
+    pub fn handler_addr(&self) -> VirtAddr {
+        let addr = self.pointer_low as u64 | ((self.pointer_high as u64) >> 32 ) | ((self.pointer_middle as u64) >> 16 );
+        VirtAddr::new_truncate(addr)
+    }
+
+
 }
 
+
+// common trait for all handler function
+pub unsafe trait HandlerFuncType {
+    fn to_virt_addr(self) -> VirtAddr;
+}
+
+
+impl <F: HandlerFuncType> Entry<F> {
+    pub fn set_handler_func(&mut self, handler: F) -> &mut EntryOptions {
+        unsafe {
+            self.set_handler_addr(handler.to_virt_addr())
+        }
+    }
+}
+
+
+macro_rules! impl_handler_func_type {
+    ($f: ty) => {
+        #[cfg(all(
+            any(target_arch="x86" or target_arch="x86_64"),
+            feature = "abi_x64_interrupt"
+        ))]
+        unsafe impl HandlerFuncType for $f {
+            #[inline]
+            fn to_virt_addr(self) -> VirtAddr {
+                #[cfg_attr(
+                    any( target_pointer_width: "32", target_pointer_width = "64" ),
+                    allow(clippy::fn_to_numeric_casr)
+                )]
+                VirtAddr::new(self as u64)
+            }
+        }
+    };
+}
+
+
+impl_handler_func_type!(HandlerFunc);
+impl_handler_func_type!(HandlerFuncWithErrCode);
+impl_handler_func_type!(PageFaultHandlerFunc);
+impl_handler_func_type!(DivergingHandlerFunc);
+impl_handler_func_type!(DivergingHandlerFuncWithErrCode);
+
+
+
+// represents the 4 non-offset bytes for an IDT entry
+#[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub struct EntryOptions{
     cs: SegmentSelector,
     bits: u16
+}
+
+impl fmt::Debug for  EntryOptions {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("EntryOptions")
+        .field("code_selector", &self.cs)
+        .field("stack_index", &self.stack_index())
+        .field("tyoe", &format_args!("{:04b}", self.bits.get_bits(8..12)))
+        .field("privilege_level", &self.privilege_level())
+        .field("present", &self.present())
+        .finish()
+    }
 }
 
 impl EntryOptions {
