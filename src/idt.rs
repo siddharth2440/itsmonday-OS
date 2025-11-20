@@ -390,7 +390,6 @@ impl<T> GeneralHandlerFunc<T> {
         VirtAddr::new_truncate(addr)
     }
 
-
 }
 
 
@@ -436,7 +435,6 @@ impl_handler_func_type!(DivergingHandlerFunc);
 impl_handler_func_type!(DivergingHandlerFuncWithErrCode);
 
 
-
 // represents the 4 non-offset bytes for an IDT entry
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
@@ -458,10 +456,147 @@ impl fmt::Debug for  EntryOptions {
 }
 
 impl EntryOptions {
+    
     const fn minimal() -> Self {
         EntryOptions {
             cs: SegmentSelector(0), 
             bits: 0b1110_0000_0000
         }
     }
+
+    // function will be unsafe bcz the caller must ensure that the passed segment 
+    // selector points to a valid, long-mode code segment.
+    #[inline]
+    pub unsafe fn set_code_selector( &mut self, cs: SegmentSelector ) -> &mut Self {
+        self.cs = cs;
+        self
+    }
+
+
+    // set or reset the present bit
+    #[inline]
+    pub fn set_present(&mut self, present: bool) -> &mut Self {
+        self.bits.set_bit(15, present);
+        self
+    }
+
+
+    #[inline]
+    pub fn present(&self) -> bool {
+        self.bits.get_bit(15)
+    }
+
+    #[inline]
+    pub fn disable_interrupts(&mut self, disable: bool) -> &mut Self {
+        self.bits.set_bit(8, !disable);
+        self
+    }
+
+    #[inline]
+    pub fn set_privilege_level(&mut self, dpl: PrivilegeLevel) -> &mut Self {
+        self.bits.set_bits(13..15, dpl as u16);
+        self
+    }
+
+    #[inline]
+    pub fn privilege_level( &self ) -> PrivilegeLevel {
+        PrivilegeLevel::from_u16(self.bits.get_bits(13..15))
+    }
+
+    #[inline]
+    pub unsafe fn set_stack_index(&mut self, index: u16) -> &mut Self {
+        self.bits.set_bits(0..3, index+1);
+        self
+    }
+
+    fn stack_index(&self) -> Option<u16> {
+        self.bits.get_bits(0..3).checked_sub(1)
+    }
+
+
 }
+
+#[derive(Clone, Copy)]
+#[repr(C)]
+pub struct InterruptStackFrameValue {
+    pub instruction_pointer: VirtAddr,
+    pub code_segment: SegmentSelector,
+    _reserved1: [u8; 8],
+    pub cpu_flags: RFlags,
+    pub stack_pointer: VirtAddr,
+    pub stack_segment: SegmentSelector,
+    _reserved2: [u8; 8]
+}
+
+
+impl InterruptStackFrameValue {
+
+    pub fn new(
+        instruction_pointer: VirtAddr,
+        code_segment: SegmentSelector,
+        cpu_flags: RFlags,
+        stack_pointer: VirtAddr,
+        stack_segment: SegmentSelector,
+    ) -> Self {
+        Self { 
+            instruction_pointer, 
+            code_segment, 
+            _reserved1: Default::default(), 
+            cpu_flags, 
+            stack_pointer, stack_segment, _reserved2: Default::default() 
+        }
+    }
+
+
+    pub unsafe fn iretq(&self) -> ! {
+        unsafe {
+            core::arch::asm!(
+                "push {stack_segment:r}",
+                "push {new_stack_pointer}",
+                "push {rflags}",
+                "push {code_segment:r}",
+                "push {new_instruction_pointer}",
+                "iretq",
+                rflags = in(reg) self.cpu_flags.bits(),
+                new_instruction_pointer = in(reg) self.instruction_pointer.as_u64(),
+                new_stack_pointer = in(reg) self.stack_pointer.as_u64(),
+                code_segment = in(reg) self.code_segment.0,
+                stack_segment = in(reg) self.stack_segment.0,
+                options(noreturn)
+            )
+        }
+    }
+}
+
+
+impl fmt::Debug for InterruptStackFrameValue {
+
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut s = f.debug_struct("InterruptStackFrameValue");
+        s.field("instruction_pointer", &self.instruction_pointer);
+        s.field("code_segment", &self.code_segment);
+        s.field("cpu_flags", &self.cpu_flags);
+        s.field("stack_pointer", &self.stack_pointer);
+        s.field("stack_segment", &self.stack_segment);
+        s.finish();
+    }
+
+}
+
+
+// #[repr(transparent)]
+// pub struct InterruptStackFrame(InterruptStackFrameValue);
+
+// impl InterruptStackFrame {
+
+//     pub fn new(
+//         instruction_pointer: VirtAddr,
+//         code_segment:  SegmentSelector,
+//         cpu_flags: RFlags,
+//         stack_pointer: VirtAddr,
+//         stack_segment: SegmentSelector
+//     ) -> Self {
+//         Self(InterruptStackFrameValue::)
+//     }
+
+// }
