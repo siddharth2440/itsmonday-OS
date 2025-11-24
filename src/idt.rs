@@ -1,6 +1,9 @@
 // Interrupt Descriptor Table
 
-use core::{fmt, marker::PhantomData, ops::{Bound, IndexMut, Range, RangeBounds, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive}};
+use core::{fmt::{self, write}, marker::PhantomData, ops::{Bound, Deref, IndexMut, Range, RangeBounds, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive}};
+
+use bitflags::bitflags;
+use volatile::Volatile;
 
 use crate::{segmentation::{SegmentSelector, CS}, DescriptorTablePointer};
 
@@ -516,6 +519,8 @@ impl EntryOptions {
 
 }
 
+
+// represents the interrupt stack frame pushed by the CPU on the interrupt or exception entry. 
 #[derive(Clone, Copy)]
 #[repr(C)]
 pub struct InterruptStackFrameValue {
@@ -584,19 +589,91 @@ impl fmt::Debug for InterruptStackFrameValue {
 }
 
 
-// #[repr(transparent)]
-// pub struct InterruptStackFrame(InterruptStackFrameValue);
+#[repr(transparent)]
+pub struct InterruptStackFrame(InterruptStackFrameValue);
 
-// impl InterruptStackFrame {
+impl InterruptStackFrame {
 
-//     pub fn new(
-//         instruction_pointer: VirtAddr,
-//         code_segment:  SegmentSelector,
-//         cpu_flags: RFlags,
-//         stack_pointer: VirtAddr,
-//         stack_segment: SegmentSelector
-//     ) -> Self {
-//         Self(InterruptStackFrameValue::)
-//     }
+    // creates a new interrupt stackframe with given value
+    
+    #[inline]
+    pub fn new(
+        instruction_pointer: VirtAddr,
+        code_segment:  SegmentSelector,
+        cpu_flags: RFlags,
+        stack_pointer: VirtAddr,
+        stack_segment: SegmentSelector
+    ) -> Self {
 
-// }
+        Self(InterruptStackFrameValue::new(
+            instruction_pointer, 
+            code_segment, 
+            cpu_flags, 
+            stack_pointer, 
+            stack_segment
+        ))
+    }
+
+
+    // gives us the mutable access to the contents of the interrupt stack frame
+    pub unsafe fn as_mut(&mut self) -> Volatile<&mut InterruptStackFrameValue> {
+        Volatile::new(&mut self.0)
+    }
+
+}
+
+
+
+
+impl Deref for InterruptStackFrame {
+
+    type Target = InterruptStackFrameValue;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+
+}
+
+impl fmt::Debug for InterruptStackFrame {
+
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+
+}
+
+// Page fault error codes
+bitflags! {
+
+    pub struct PageFaultErrorCode: u64 {
+
+        const PROTECTION_VIOLATION = 1;
+        const CAUSED_BY_WRITE = 1 << 1;
+
+        const USER_MODE = 1 << 2;
+        const MALFORMED_TABLE = 1 << 3;
+        const INSTRUCTION_FETCH = 1 << 4;
+        const PROTECTION_KEY = 1 << 5; // fault is caused by protection key.
+        const SHADOW_KEY = 1 << 6;  // Page fault is caused by Shadow key.
+
+        // for AMD machines( Reverse map paging )
+        // a structure that Resides in our DRAM and maps sPA's(system physical addresses) 
+        // to gPA'a( guest physical addresses) Acc. to AMD spec.
+
+
+        // In the context of AMD Secure Encrypted Virtualization-Secure Nested Paging (SEV-SNP) technology, 
+        // the RMP stands for Reverse Map Table. 
+        // The RMP is a critical hardware-managed data structure designed to enforce memory integrity and protect confidential virtual machines (CVMs) from an untrusted hypervisor. 
+        const RMP = 1 << 31;
+
+        // for Intel machines
+        const HLAT = 1 << 7;
+
+        // Intel SGX (Software Guard Extensions) is a set of CPU instruction codes that creates isolated, 
+        // encrypted memory regions called enclaves to protect sensitive data and code during execution
+        const SGX = 1 << 15; // softwareguard extensions
+
+    }
+
+}
