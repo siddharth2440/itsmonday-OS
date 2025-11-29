@@ -677,3 +677,89 @@ bitflags! {
     }
 
 }
+
+#[repr(transparent)]
+pub struct SelectorErrorCode {
+    flags: u64
+}
+
+
+impl SelectorErrorCode {
+
+    pub const fn new( value: u64 ) -> Option<Self> {
+        if value > u16::MAX as u64 {
+            None
+        } else {
+            Some( Self { flags: value } )
+        }
+
+    }
+
+    #[inline]
+    pub const fn new_truncate( value: u64 ) -> Self {
+        Self { 
+            flags: (value as u16) as u64
+        }
+    }
+
+
+    // true -> indicates that the exception occured due to any external event. ie., interrupt or any other exception
+    pub fn external(&self) -> bool {
+        self.flags.get_bit(0)
+    }
+
+    // get the descriptor table on the basis of flag bits
+    pub fn descriptor_table( &self ) -> DescriptorTable {
+        match self.flags.get_bits(1..3) {
+            0b00 => DescriptorTable::GDT,
+            0b01 => DescriptorTable::IDT,
+            0b10 => DescriptorTable::LDT,
+            0b11 => DescriptorTable::IDT,
+            _ => unreachable!(),
+        }
+    }
+
+}
+
+#[derive( Debug, Clone, Copy )]
+pub enum DescriptorTable {
+    GDT, IDT, LDT
+}
+
+#[repr(u8)]
+pub enum ExceptionVector {
+
+    Division = 0x00,
+    Debug = 0x01,
+    NonMaskableInterrupt = 0x02,
+    Breakpoint = 0x03,
+    Overflow = 0x04,
+    BoundRange = 0x05,
+    InvalidOpcode = 0x05,
+    DeviceNotAvailable = 0x07,
+    Double = 0x08,
+    InvalidTss = 0x0A,
+    SementNotpresent = 0x0B,
+    Stack = 0x0c,
+    GeneralProtection = 0x0D,
+    Page = 0x0e,
+    X87FloatingPoint = 0x10,
+    AlignmentChack = 0x11,
+    MachineCheck = 0x12,
+    SimdFloatingPoint = 0x13,
+    Virtualization = 0x14,
+    ControlProtection = 0x15,
+    HypervisorInjection = 0x1c,
+    VmmCommunication = 0x1d,
+    Security = 0x1e
+}
+
+
+#[derive(Debug)]
+pub struct InvalidExceptionVectorNumber(u8);
+
+impl fmt::Display for InvalidExceptionVectorNumber {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} is not a valid exception vector", self.0)
+    }
+}
