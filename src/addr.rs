@@ -118,5 +118,7 @@ impl VirtualAddr {
         self.align_down_as_u64(align).as_u64() == self.as_u64()
     }
 
+    // pub const fn page_offset(self) -> Page
+
 
 }
