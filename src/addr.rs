@@ -1,4 +1,6 @@
-use core::fmt::Debug;
+use core::{fmt::Debug, iter::Enumerate};
+
+use crate::meme_encrypt::ENC_BIT_MASK;
 
 const ADDRESS_SPACE_SIZE: u64 = 0x1_0000_0000_0000;
 
@@ -75,10 +77,10 @@ impl VirtualAddr {
         self.as_u64() as *const T
     }
 
-    #[inline]
-    pub const fn as_mut_ptr<T>(self) -> bool {
-        self.as_ptr::<T>() as *mut T
-    }
+    // #[inline]
+    // pub const fn as_mut_ptr<T>(self) -> bool {
+    //     self.as_ptr::<T>() as *mut T
+    // }
 
     #[inline]
     pub const fn is_null(&self) -> bool {
@@ -122,3 +124,113 @@ impl VirtualAddr {
 
 
 }
+
+pub struct PhyAddrNotValid(pub u64);
+
+impl Debug for PhyAddrNotValid {
+
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_tuple("PhyAddrNotValid").field(&format_args!( "{:#x}", self.0 )).finish()
+    }
+
+}
+
+// const 
+
+
+impl PhyAddr {
+
+    #[inline]
+    pub const fn new(addr: u64) -> Self {
+        match Self::try_new(addr) {
+            Ok(p) => p,
+            Err(_) => panic!("Invalid Physical Address bits.")
+        }
+    }
+
+    // throws a bits 52..64 away.
+    #[cfg(not(feature = "memory_encryption"))]
+    #[inline]
+    pub const fn new_truncate(addr: u64) -> PhyAddr {
+        PhyAddr( addr % (1 << 52))
+    }
+
+    // throws a bits 52..64 + Encrytion Bit away.
+    #[cfg(not(feature = "memory_encryption"))]
+    #[inline]
+    pub const fn new_truncate(addr: u64) -> PhyAddr {
+        PhyAddr( addr % (1 << 52) & !ENC_BIT_MASK.load(core::sync::atomic::Ordering::Release))
+    }
+
+    // not a checked bits, need to check 52..64 bits.
+    #[inline]
+    pub unsafe fn new_unsafe(addr: u64) -> PhyAddr {
+        PhyAddr(addr)
+    }
+
+    #[cfg(not(feature = "memory_encryption"))]
+    #[inline]
+    pub const fn try_new(addr: u64) -> Result<Self, ()> {
+        let pa = Self::new_truncate(addr);
+        if pa.0 == addr {
+            Ok(pa)
+        } else {
+            Err(())
+        }
+    }
+
+    #[inline]
+    pub const fn zero(&self) -> PhyAddr {
+        PhyAddr(0)
+    }
+
+    #[inline]
+    pub const fn as_u64(&self) -> u64 {
+        self.0
+    }
+
+    #[inline]
+    pub const fn is_null(&self) -> bool {
+        return self.0 == 0;
+    }
+
+    #[inline]
+    pub fn align_up<U>(&self, align: U) -> Self
+    where
+    U: Into<u64>,
+    {
+        PhyAddr::new(align_up(self.0, align.into()))
+    }
+
+
+    #[inline]
+    pub fn align_down_u64<U>(&self, align: U) -> Self
+    where
+    U: Into<u64>,
+    {
+        PhyAddr::new(align_down(self.0, align))
+    }
+
+    #[inline]
+    pub fn is_aligned<U>(self, align: U) -> bool
+    where
+        U: Into<u64>
+    {
+        self.is_aligned_u64(align)
+    }
+
+    #[inline]
+    pub fn is_aligned_u64<U: Into<u64>>(self, align: U) -> bool {
+        self.align_down_u64(align).as_u64() == self.as_u64()
+    }
+
+}
+
+impl Debug for PhyAddr {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_tuple("PhysAddr")
+            .field(&format_args!("{:#x}", self.0))
+            .finish()
+    }
+}
+

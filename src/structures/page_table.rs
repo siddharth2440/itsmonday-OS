@@ -2,6 +2,8 @@ use core::sync::atomic::AtomicU64;
 
 use bitflags::bitflags;
 
+use crate::addr::PhyAddr;
+
 #[derive(Debug, Clone, Copy)]
 
 // Error returened by the FrameEntry.
@@ -41,11 +43,23 @@ impl PageTableEntry {
     #[inline]
     #[const_fn(cfg(not( feature = "memory_encryption")))]
     pub const fn flags(&self) -> PageTableFlags {
-
+        PageTableFlags::from_bits_retain(self.entry & !Self::physical)
     }
 
-}
 
+    // returns PA mapped by this entry.
+    #[inline]
+    pub fn addr(&self) -> PhyAddr {
+        PhyAddr::new(self.entry & )
+    }
+
+
+    pub fn 
+
+
+
+
+}
 
 
 bitflags! {

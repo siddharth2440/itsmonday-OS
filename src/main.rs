@@ -18,6 +18,7 @@ pub mod model_specific;
 pub mod addr;
 pub mod gdt;
 pub mod rflags;
+pub mod meme_encrypt;
 
 mod structures {
     mod page_table;
