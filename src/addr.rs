@@ -1,4 +1,4 @@
-use core::{fmt::Debug, iter::Enumerate};
+use core::{fmt::{self, Debug}, iter::Enumerate, ops::{Add, AddAssign, Sub, SubAssign}};
 
 use crate::meme_encrypt::ENC_BIT_MASK;
 
@@ -105,7 +105,7 @@ impl VirtualAddr {
 
     #[inline]
     pub(crate) const fn align_down_as_u64( self, align: u64 ) -> Self {
-        VirtualAddr::new_truncate(align_down( self.0 ))
+        VirtualAddr::new_truncate(align_down( self.0, align ))
     }
 
     #[inline]
@@ -208,7 +208,7 @@ impl PhyAddr {
     where
     U: Into<u64>,
     {
-        PhyAddr::new(align_down(self.0, align))
+        PhyAddr::new(align_down(self.0, align.into()))
     }
 
     #[inline]
@@ -234,3 +234,97 @@ impl Debug for PhyAddr {
     }
 }
 
+impl fmt::Binary for PhyAddr {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Binary::fmt(&self.0, f)
+    }
+}
+
+// Upperhex 
+impl fmt::UpperHex for PhyAddr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::UpperHex::fmt(&self.0, f)
+    }
+}
+
+// Lowerhex
+impl fmt::LowerHex for PhyAddr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::LowerHex::fmt(&self.0, f)
+    }
+}
+// Octal
+impl fmt::Octal for PhyAddr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Octal::fmt(&self.0, f)
+    }
+}
+
+// Add
+impl Add<u64> for PhyAddr {
+    type Output = Self;
+
+    fn add(self, rhs: u64) -> Option<Self::Output> {
+        if let Some( addr ) = self.0.checked_add(rhs) {
+            return Some(PhyAddr::new(addr));
+        } else {
+            return None;
+        }
+    }
+}
+
+// AddAssign
+impl AddAssign<u64> for PhyAddr {
+    fn add_assign(&mut self, rhs: u64) {
+        *self = *self.0 + rhs
+    }
+}
+
+
+// Sub
+impl Sub<u64> for PhyAddr {
+    type Output = Self;
+
+    fn sub(self, rhs: u64) -> Option<Self::Output> {
+        if let Some( addr ) = self.0.checked_sub(rhs) {
+            return Some(PhyAddr::new(addr));
+        } else {
+            return None;
+        }
+    }
+}
+
+// SubAssign
+impl SubAssign<u64> for PhyAddr {
+    fn sub_assign(&mut self, rhs: u64) {
+        *self = *self.0 - rhs;
+    }
+}
+
+
+impl Sub<PhyAddr> for PhyAddr {
+    type Output = u64;
+
+    fn sub(self, rhs: u64) -> Self::Output {
+        type Output = u64;
+        return self.as_u64().checked_sub(rhs.as_u64()).unwrap();
+    }
+}
+
+
+// Downwards address alignment.
+// aligned = address & ~(alignment - 1)
+pub const fn align_down( addr: u64, align: u64 ) -> u64 {
+    return addr & !(align - 1);
+}
+
+
+// upward address alignment
+// aligned = (address + alignment - 1) & ~(alignment - 1)
+pub const fn align_up( addr: u64, align: u64 ) -> u64 {
+    (addr + align - 1) & !(align - 1)
+}
+
+
+// tests
