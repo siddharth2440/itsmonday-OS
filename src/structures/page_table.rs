@@ -1,7 +1,5 @@
 use core::sync::atomic::AtomicU64;
-
 use bitflags::bitflags;
-
 use crate::addr::PhyAddr;
 
 #[derive(Debug, Clone, Copy)]
@@ -46,15 +44,26 @@ impl PageTableEntry {
         PageTableFlags::from_bits_retain(self.entry & !Self::physical)
     }
 
-
     // returns PA mapped by this entry.
     #[inline]
     pub fn addr(&self) -> PhyAddr {
-        PhyAddr::new(self.entry & )
+        PhyAddr::new(self.entry & Self::physical_addr_mask() )
     }
 
+    // Returns Physical Frame marked by this one entry.
+    pub fn frame(&self) -> Result<PhysFrame, FrameError> {
+        if !self.flags().contains(PageTableFlags::PRESENT) {
+            return Err(FrameError::FrameNotPresent);
+        } else if self.flags().contains(PageTableFlags::HUGE_PAGE) {
+            return Err(FrameError::HugeFrame);
+        } else {
+            return Ok(PhysFrame::containing_address(addr));
+        }
+    }
 
-    pub fn 
+    const fn physical_addr_mask() -> u64 {
+        0x000f_ffff_ffff_f000u64
+    } 
 
 
 

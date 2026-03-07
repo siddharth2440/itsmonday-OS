@@ -19,10 +19,8 @@ pub mod addr;
 pub mod gdt;
 pub mod rflags;
 pub mod meme_encrypt;
+pub mod structures;
 
-mod structures {
-    mod page_table;
-}
 
 static HELLO: &[u8] = b"                                  It'sMoNdAy OS                                                                                                                  ";
 
