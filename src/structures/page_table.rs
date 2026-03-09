@@ -61,10 +61,22 @@ impl PageTableEntry {
         }
     }
 
+
+    // Mask is used in 64-bit OSes( Particularly with x86_64 ) 
+    // to extract the Physical Page frame address from a PTE(Page Table Entry)
+    // while clearing out Control/Attribute Bits.
     const fn physical_addr_mask() -> u64 {
         0x000f_ffff_ffff_f000u64
-    } 
+    }
 
+    // Maps the Specified Physical Address with the specified flags.
+    #[inline]
+    pub fn set_addr(&mut self, addr: PhyAddr, flags: PageTableFlags) {
+        self.entry = ( addr.as_u64() ) | flags.bits();
+    }
+
+    // Maps the specified Physical Frame with specified flags.
+    // pub fn set_frame( &mut self, frame: ,  )
 
 
 
