@@ -1,5 +1,4 @@
 use core::{fmt, marker::PhantomData};
-
 use crate::{addr::PhyAddr, structures::page::{AddressNotAligned, PageSize, Size4Kib}};
 
 
@@ -14,7 +13,7 @@ pub struct PhysFrame<S: PageSize = Size4Kib> {
 impl<S: PageSize> PhysFrame<S> {    
     // Returns the starting frame at the given Virtual Address.
     #[inline]
-    fn frame_from_start_addr( addr: PhyAddr ) -> Result<Self, AddressNotAligned> {
+    pub fn frame_from_start_addr( addr: PhyAddr ) -> Result<Self, AddressNotAligned> {
         if !addr.is_aligned(S::SIZE) {
             return Err(AddressNotAligned); 
         }
@@ -125,17 +124,65 @@ impl Iterator<S: PageSize> for PhysFrameRange<S> {
 }
 
 
-// impl<S: PageSize> fmt::Debug for PhysFrameRange<S> {
-//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-//         f.debug_struct("PhysFrameRange")
-//         .field("start", &self.start)
-//         .field("end", &self.end)
-//         .finish()
-//     }
-// }
+impl<S: PageSize> fmt::Debug for PhysFrameRange<S> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("PhysFrameRange")
+        .field("start", self.start.into())
+        .field("end", self.end.into())
+        .finish()
+    }
+}
 
 #[repr(C)]
 pub struct PhysFrameRangeInclusive<S: PageSize = Size4Kib> {
     pub start: PhysFrame<S>,
     pub end: PhysFrame<S>,
+}
+
+impl<S: PageSize> PhysFrameRangeInclusive<S> {
+    
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.start > self.end
+    }
+
+    #[inline]
+    pub fn len(&self) -> usize {
+        if !self.is_empty() {
+            self.end - self.start
+        } else {
+            0
+        }
+    }
+
+    #[inline]
+    pub fn size(&self) -> u64 {
+        S::SIZE * self.len()
+    }
+}
+
+
+impl Iterator<S: PageSize> for PhysFrameRangeInclusive<S> {
+    type Item = PhysFrame<S>;
+
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.start <= self.end {
+            let frame = self.start;
+            self.start += 1;
+            Some(frame)
+        } else {
+            None
+        }
+    }
+}
+
+
+impl fmt::Debug<S: PageSize> for PhysFrameRangeInclusive<S> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("PhysicalFrameInclusive")
+            .field("start", self.start.into())
+            .field("end", self.end.into())
+            .finish()
+    }
 }

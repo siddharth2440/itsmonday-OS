@@ -1,6 +1,6 @@
-use core::sync::atomic::AtomicU64;
+use core::{fmt, sync::atomic::AtomicU64};
 use bitflags::bitflags;
-use crate::addr::PhyAddr;
+use crate::{addr::PhyAddr, structures::phys_frame::PhysFrame};
 
 #[derive(Debug, Clone, Copy)]
 
@@ -75,17 +75,44 @@ impl PageTableEntry {
         self.entry = ( addr.as_u64() ) | flags.bits();
     }
 
+    #[inline]
     // Maps the specified Physical Frame with specified flags.
-    // pub fn set_frame( &mut self, frame: ,  )
+    pub fn set_frame( &mut self, frame: PhysFrame, flags: PageTableFlags  ) {
+        assert!(frame.frame_from_start_addr(frame), flags)
+    }
+
+    #[inline]
+    pub fn setflags(&self, flags: PageTableFlags) {
+        self.entry = self.addr().as_u64() | flags.bits();
+    }
+
+}
 
 
+impl Default for PageTableEntry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
+
+impl fmt::Debug for PageTableEntry {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut f = f.debug_struct("PageTableEntry");
+        f.field("addr", &self.addr());
+        f.field("flags", &self.flags());
+        f.finish()
+    }
 }
 
 
 bitflags! {
     pub struct PageTableFlags: u64 {
+
+        // ididcates fi the page is currently in physical memeory or swapped out.
         const PRESENT =               1;
+
+        // indicates that the page can be written to (1) or is read-only. 
         const WRITABLE =              1<<1;
         const USERACCESSIBLE =        1<<2;
         const WRITETHROUGH =          1<<3;
@@ -123,7 +150,6 @@ pub struct PageTable {
     entries: [PageTableEntry; ENTRY_COUNT],
 }
 
-
 impl PageTable {
 
     #[inline]
@@ -131,4 +157,5 @@ impl PageTable {
         const EMPTY: PageTableEntry = PageTableEntry::new();
         Self { entries: [EMPTY; ENTRY_COUNT] }
     }
+
 }
